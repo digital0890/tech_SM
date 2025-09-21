@@ -21,7 +21,10 @@ st.markdown("<hr>", unsafe_allow_html=True)
 with st.sidebar:
     st.header("⚙️ Settings")
 
-    symbol = st.text_input("Symbol", value="ETH/USD")
+    # انتخاب ارز از لیست
+    symbols = ["BTC/USD", "ETH/USD", "BNB/USD", "XRP/USD", "ADA/USD"]
+    symbol = st.selectbox("Select Symbol", options=symbols, index=1)
+
     timeframe = st.selectbox("Timeframe", options=["1m","5m","15m","30m","1h","4h","1d"], index=4)
     lookback = st.slider("Lookback (for Supply/Demand points)", 1, 10, 3)
 
