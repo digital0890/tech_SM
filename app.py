@@ -5,14 +5,15 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import time
 from datetime import datetime, timedelta
+import yfinance as yf  # برای داده طلا
 
 # -------------------------------
 # Page settings
 # -------------------------------
-st.set_page_config(layout="wide", page_title="Crypto Supply/Demand Analysis")
+st.set_page_config(layout="wide", page_title="Crypto & Gold Supply/Demand Analysis")
 
 # Centered title
-st.markdown("<h1 style='text-align: center;'>📈 Crypto Supply & Demand Analysis</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>📈 Supply & Demand Analysis (Crypto & Gold)</h1>", unsafe_allow_html=True)
 st.markdown("<hr>", unsafe_allow_html=True)
 
 # -------------------------------
@@ -22,7 +23,7 @@ with st.sidebar:
     st.header("⚙️ Settings")
 
     # انتخاب ارز از لیست
-    symbols = ["BTC/USD", "ETH/USD", "BNB/USD", "XRP/USD", "ADA/USD"]
+    symbols = ["BTC/USD", "ETH/USD", "BNB/USD", "XRP/USD", "ADA/USD", "XAU/USD"]  # اضافه کردن طلا
     symbol = st.selectbox("Select Symbol", options=symbols, index=1)
 
     timeframe = st.selectbox("Timeframe", options=["1m","5m","15m","30m","1h","4h","1d"], index=4)
@@ -52,40 +53,50 @@ with st.sidebar:
     start_time = st.time_input("Start Time", value=default_start.time())
 
 # -------------------------------
-# Convert to timestamp in ms
+# Convert to datetime
 # -------------------------------
 start_dt = datetime.combine(start_date, start_time)
 end_dt = datetime.combine(end_date, end_time)
-since = int(start_dt.timestamp() * 1000)
-until = int(end_dt.timestamp() * 1000)
 
 # -------------------------------
-# Fetch data using CCXT
+# Fetch data
 # -------------------------------
-exchange = ccxt.coinbase()
 ohlcv = []
 
-with st.spinner("Fetching data from exchange..."):
-    while since < until:
-        batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
-        if len(batch) == 0:
-            break
-        ohlcv += batch
-        since = batch[-1][0] + 1
-        time.sleep(exchange.rateLimit / 1000)
+if symbol == "XAU/USD":
+    st.info("Fetching Gold data from Yahoo Finance...")
+    # yfinance expects XAU-USD symbol
+    yf_symbol = "GC=F"  # طلا فیوچرز
+    data_yf = yf.download(yf_symbol, start=start_dt, end=end_dt, interval=timeframe)
+    if data_yf.empty:
+        st.error("No data found for Gold!")
+        st.stop()
+    data = data_yf[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+    data.index = data.index.tz_localize('UTC').tz_convert('Asia/Tehran')
+else:
+    st.info(f"Fetching {symbol} data from Coinbase...")
+    exchange = ccxt.coinbase()
+    since = int(start_dt.timestamp() * 1000)
+    until = int(end_dt.timestamp() * 1000)
 
-if len(ohlcv) == 0:
-    st.error("No data found! Check symbol or timeframe.")
-    st.stop()
+    with st.spinner("Fetching data from exchange..."):
+        while since < until:
+            batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
+            if len(batch) == 0:
+                break
+            ohlcv += batch
+            since = batch[-1][0] + 1
+            time.sleep(exchange.rateLimit / 1000)
 
-# -------------------------------
-# Create DataFrame
-# -------------------------------
-data = pd.DataFrame(ohlcv, columns=['timestamp','Open','High','Low','Close','Volume'])
-data['timestamp'] = pd.to_datetime(data['timestamp'], unit='ms', utc=True)
-data['timestamp'] = data['timestamp'].dt.tz_convert('Asia/Tehran')
-data.set_index('timestamp', inplace=True)
-data = data[data.index <= pd.Timestamp(end_dt).tz_localize('Asia/Tehran')]
+    if len(ohlcv) == 0:
+        st.error("No data found! Check symbol or timeframe.")
+        st.stop()
+
+    data = pd.DataFrame(ohlcv, columns=['timestamp','Open','High','Low','Close','Volume'])
+    data['timestamp'] = pd.to_datetime(data['timestamp'], unit='ms', utc=True)
+    data['timestamp'] = data['timestamp'].dt.tz_convert('Asia/Tehran')
+    data.set_index('timestamp', inplace=True)
+    data = data[data.index <= pd.Timestamp(end_dt).tz_localize('Asia/Tehran')]
 
 # -------------------------------
 # Calculations
@@ -114,7 +125,7 @@ demand_idx_filtered = [i for i in demand_idx if data['Volume'].iloc[i] > data['V
 st.markdown(f"### 🔴 Supply Points: {len(supply_idx_filtered)} | 🟢 Demand Points: {len(demand_idx_filtered)}")
 
 # -------------------------------
-# Plot chart with smooth animation
+# Plot chart
 # -------------------------------
 fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                     vertical_spacing=0.05,
