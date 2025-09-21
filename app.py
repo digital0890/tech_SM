@@ -6,16 +6,17 @@ from plotly.subplots import make_subplots
 import time
 from datetime import datetime, timedelta
 
+# تنظیمات صفحه
 st.set_page_config(layout="wide", page_title="Crypto Supply/Demand Analysis")
 
-st.title("تحلیل نقاط Supply و Demand کریپتو")
+st.title("📈 تحلیل نقاط Supply و Demand کریپتو")
 
 # -------------------------------
-# ستون کناری برای تنظیمات
+# ستون کناری برای تنظیمات مرتب
 # -------------------------------
 with st.sidebar:
-    st.header("تنظیمات")
-    
+    st.header("⚙️ تنظیمات تحلیل")
+
     symbol = st.text_input("نماد (Symbol)", value="ETH/USD")
     timeframe = st.selectbox("تایم‌فریم", options=["1m","5m","15m","30m","1h","4h","1d"], index=4)
     lookback = st.slider("lookback (برای نقاط Supply/Demand)", 1, 10, 3)
@@ -25,10 +26,9 @@ with st.sidebar:
     end_date = st.date_input("تاریخ پایان", value=default_end.date())
     end_time = st.time_input("ساعت پایان", value=default_end.time())
 
-    # حجم داده مورد نیاز: تعداد کندل‌ها (مثلاً 500)
     required_candles = 500
 
-    # محاسبه تاریخ شروع به صورت خودکار
+    # محاسبه تاریخ شروع خودکار
     tf_map = {
         "1m": timedelta(minutes=1),
         "5m": timedelta(minutes=5),
@@ -57,7 +57,8 @@ until = int(end_dt.timestamp() * 1000)
 # -------------------------------
 exchange = ccxt.coinbase()
 ohlcv = []
-with st.spinner("در حال دریافت داده‌ها..."):
+
+with st.spinner("در حال دریافت داده‌ها از صرافی..."):
     while since < until:
         batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
         if len(batch) == 0:
@@ -101,14 +102,13 @@ supply_idx_filtered = [i for i in supply_idx if data['Volume'].iloc[i] > data['V
 demand_idx_filtered = [i for i in demand_idx if data['Volume'].iloc[i] > data['Volume_MA20'].iloc[i]]
 
 # -------------------------------
-# رسم نمودار با انیمیشن نرم
+# رسم نمودار
 # -------------------------------
 fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                     vertical_spacing=0.05,
                     row_heights=[0.7,0.3],
-                    subplot_titles=(f"نمودار کندل‌استیک ({symbol})", "حجم معاملات"))
+                    subplot_titles=(f"کندل‌استیک {symbol}", "حجم معاملات"))
 
-# کندل‌استیک
 fig.add_trace(go.Candlestick(
     x=data.index,
     open=data['Open'],
@@ -118,7 +118,6 @@ fig.add_trace(go.Candlestick(
     name="قیمت"
 ), row=1, col=1)
 
-# نقاط Supply
 fig.add_trace(go.Scatter(
     x=data.index[supply_idx_filtered],
     y=data['High'].iloc[supply_idx_filtered] + 5,
@@ -127,7 +126,6 @@ fig.add_trace(go.Scatter(
     name='Supply'
 ), row=1, col=1)
 
-# نقاط Demand
 fig.add_trace(go.Scatter(
     x=data.index[demand_idx_filtered],
     y=data['Low'].iloc[demand_idx_filtered] - 5,
@@ -136,7 +134,6 @@ fig.add_trace(go.Scatter(
     name='Demand'
 ), row=1, col=1)
 
-# حجم صعودی و نزولی
 fig.add_trace(go.Bar(
     x=up.index,
     y=up['Volume'],
@@ -153,7 +150,6 @@ fig.add_trace(go.Bar(
     opacity=0.8
 ), row=2, col=1)
 
-# MA20 حجم
 fig.add_trace(go.Scatter(
     x=data.index,
     y=data['Volume_MA20'],
@@ -172,4 +168,7 @@ fig.update_layout(
     transition={'duration': 500, 'easing': 'cubic-in-out'}  # انیمیشن نرم
 )
 
+# -------------------------------
+# نمایش نمودار در وسط صفحه
+# -------------------------------
 st.plotly_chart(fig, use_container_width=True)
