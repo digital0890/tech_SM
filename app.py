@@ -65,38 +65,19 @@ ohlcv = []
 
 if symbol == "XAU/USD":
     st.info("Fetching Gold data from Yahoo Finance...")
-    # yfinance expects XAU-USD symbol
     yf_symbol = "GC=F"  # طلا فیوچرز
     data_yf = yf.download(yf_symbol, start=start_dt, end=end_dt, interval=timeframe)
     if data_yf.empty:
         st.error("No data found for Gold!")
         st.stop()
     data = data_yf[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-    data.index = data.index.tz_localize('UTC').tz_convert('Asia/Tehran')
-else:
-    st.info(f"Fetching {symbol} data from Coinbase...")
-    exchange = ccxt.coinbase()
-    since = int(start_dt.timestamp() * 1000)
-    until = int(end_dt.timestamp() * 1000)
+    
+    # اصلاح tz-aware
+    if data.index.tz is None:
+        data.index = data.index.tz_localize('UTC').tz_convert('Asia/Tehran')
+    else:
+        data.index = data.index.tz_convert('Asia/Tehran')
 
-    with st.spinner("Fetching data from exchange..."):
-        while since < until:
-            batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
-            if len(batch) == 0:
-                break
-            ohlcv += batch
-            since = batch[-1][0] + 1
-            time.sleep(exchange.rateLimit / 1000)
-
-    if len(ohlcv) == 0:
-        st.error("No data found! Check symbol or timeframe.")
-        st.stop()
-
-    data = pd.DataFrame(ohlcv, columns=['timestamp','Open','High','Low','Close','Volume'])
-    data['timestamp'] = pd.to_datetime(data['timestamp'], unit='ms', utc=True)
-    data['timestamp'] = data['timestamp'].dt.tz_convert('Asia/Tehran')
-    data.set_index('timestamp', inplace=True)
-    data = data[data.index <= pd.Timestamp(end_dt).tz_localize('Asia/Tehran')]
 
 # -------------------------------
 # Calculations
