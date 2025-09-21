@@ -5,20 +5,23 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import time
 
-st.set_page_config(layout="wide", page_title="Crypto Supply/Demand")
+st.set_page_config(layout="wide", page_title="Crypto Supply/Demand Analysis")
 
-st.title("تحلیل نقاط Supply و Demand با CCXT و Plotly")
+st.title("تحلیل نقاط Supply و Demand کریپتو")
 
 # -------------------------------
-# تنظیمات کاربر
+# ستون کناری برای تنظیمات
 # -------------------------------
-symbol = st.text_input("نماد (Symbol)", value="ETH/USD")
-timeframe = st.selectbox("تایم‌فریم", options=["1m", "5m", "15m", "30m", "1h", "4h", "1d"], index=4)
-
-start_date = st.date_input("تاریخ شروع", value=pd.to_datetime("2025-01-01"))
-end_date   = st.date_input("تاریخ پایان", value=pd.to_datetime("2025-01-10"))
-
-lookback = st.slider("lookback (تعیین نقاط Supply/Demand)", min_value=1, max_value=10, value=3)
+with st.sidebar:
+    st.header("تنظیمات")
+    
+    symbol = st.text_input("نماد (Symbol)", value="ETH/USD")
+    timeframe = st.selectbox("تایم‌فریم", options=["1m", "5m", "15m", "30m", "1h", "4h", "1d"], index=4)
+    
+    start_date = st.date_input("تاریخ شروع", value=pd.to_datetime("2025-01-01"))
+    end_date   = st.date_input("تاریخ پایان", value=pd.to_datetime("2025-01-10"))
+    
+    lookback = st.slider("lookback (برای نقاط Supply/Demand)", min_value=1, max_value=10, value=3)
 
 # -------------------------------
 # دریافت داده با CCXT
@@ -29,7 +32,7 @@ since = int(pd.Timestamp(start_date).timestamp() * 1000)
 until = int(pd.Timestamp(end_date).timestamp() * 1000)
 
 ohlcv = []
-with st.spinner("در حال دریافت داده‌ها از صرافی..."):
+with st.spinner("در حال دریافت داده‌ها..."):
     while since < until:
         batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
         if len(batch) == 0:
@@ -39,7 +42,7 @@ with st.spinner("در حال دریافت داده‌ها از صرافی..."):
         time.sleep(exchange.rateLimit / 1000)
 
 if len(ohlcv) == 0:
-    st.error("داده‌ای یافت نشد! تایم‌فریم و تاریخ‌ها را بررسی کنید.")
+    st.error("داده‌ای یافت نشد! تایم‌فریم یا نماد را بررسی کنید.")
     st.stop()
 
 # -------------------------------
@@ -58,7 +61,6 @@ data["Volume_MA20"] = data["Volume"].rolling(window=20).mean()
 up = data[data["Close"] >= data["Open"]]
 down = data[data["Close"] < data["Open"]]
 
-# نقاط Supply/Demand
 supply_idx = []
 demand_idx = []
 
@@ -82,6 +84,7 @@ fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                     row_heights=[0.7, 0.3],
                     subplot_titles=(f"نمودار کندل‌استیک ({symbol})", "حجم معاملات"))
 
+# کندل‌استیک
 fig.add_trace(go.Candlestick(
     x=data.index,
     open=data['Open'],
@@ -91,6 +94,7 @@ fig.add_trace(go.Candlestick(
     name="قیمت"
 ), row=1, col=1)
 
+# نقاط Supply
 fig.add_trace(go.Scatter(
     x=data.index[supply_idx_filtered],
     y=data['High'].iloc[supply_idx_filtered] + 5,
@@ -99,6 +103,7 @@ fig.add_trace(go.Scatter(
     name='Supply'
 ), row=1, col=1)
 
+# نقاط Demand
 fig.add_trace(go.Scatter(
     x=data.index[demand_idx_filtered],
     y=data['Low'].iloc[demand_idx_filtered] - 5,
@@ -107,6 +112,7 @@ fig.add_trace(go.Scatter(
     name='Demand'
 ), row=1, col=1)
 
+# حجم صعودی و نزولی
 fig.add_trace(go.Bar(
     x=up.index,
     y=up['Volume'],
@@ -123,6 +129,7 @@ fig.add_trace(go.Bar(
     opacity=0.8
 ), row=2, col=1)
 
+# MA20 حجم
 fig.add_trace(go.Scatter(
     x=data.index,
     y=data['Volume_MA20'],
@@ -131,6 +138,7 @@ fig.add_trace(go.Scatter(
     line=dict(color="orange", width=2)
 ), row=2, col=1)
 
+# استایل نهایی
 fig.update_layout(
     template="plotly_dark",
     xaxis_rangeslider_visible=False,
