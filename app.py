@@ -184,10 +184,15 @@ fig.add_trace(go.Candlestick(
     name="Price"
 ), row=1, col=1)
 
+# محاسبه میانگین اندازه کندل‌ها
+data["Candle_Range"] = data["High"] - data["Low"]
+avg_range = data["Candle_Range"].mean()
+offset = avg_range * 0.2   # فاصله فلش = 20٪ از اندازه کندل
+
 # Supply points (🔴 قرمز، فلش به پایین)
 fig.add_trace(go.Scatter(
     x=data.index[supply_idx_filtered],
-    y=data['High'].iloc[supply_idx_filtered] * 1.003,
+    y=data['High'].iloc[supply_idx_filtered] + offset,
     mode='markers',
     marker=dict(symbol='triangle-down', color='red', size=12),
     name='Supply'
@@ -196,11 +201,12 @@ fig.add_trace(go.Scatter(
 # Demand points (🟢 سبز، فلش به بالا)
 fig.add_trace(go.Scatter(
     x=data.index[demand_idx_filtered],
-    y=data['Low'].iloc[demand_idx_filtered] * 0.997,
+    y=data['Low'].iloc[demand_idx_filtered] - offset,
     mode='markers',
     marker=dict(symbol='triangle-up', color='green', size=12),
     name='Demand'
 ), row=1, col=1)
+
 
 # Up & down volume bars
 fig.add_trace(go.Bar(
