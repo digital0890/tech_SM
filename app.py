@@ -184,24 +184,23 @@ fig.add_trace(go.Candlestick(
     name="Price"
 ), row=1, col=1)
 
-# Supply points
+# Supply points (🔴 قرمز، فلش به پایین)
 fig.add_trace(go.Scatter(
     x=data.index[supply_idx_filtered],
-    y=data['High'].iloc[supply_idx_filtered] * 1.01,  # نسبی
+    y=data['High'].iloc[supply_idx_filtered] * 1.003,
     mode='markers',
-    marker=dict(symbol='triangle-up', color='red', size=12),
+    marker=dict(symbol='triangle-down', color='red', size=12),
     name='Supply'
 ), row=1, col=1)
 
-# Demand points
+# Demand points (🟢 سبز، فلش به بالا)
 fig.add_trace(go.Scatter(
     x=data.index[demand_idx_filtered],
-    y=data['Low'].iloc[demand_idx_filtered] * 0.99,  # نسبی
+    y=data['Low'].iloc[demand_idx_filtered] * 0.997,
     mode='markers',
-    marker=dict(symbol='triangle-down', color='green', size=12),
+    marker=dict(symbol='triangle-up', color='green', size=12),
     name='Demand'
 ), row=1, col=1)
-
 
 # Up & down volume bars
 fig.add_trace(go.Bar(
