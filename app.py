@@ -49,13 +49,35 @@ with st.sidebar:
         start_date = st.date_input("Start Date", value=default_start.date())
         start_time = st.time_input("Start Time", value=default_start.time())
     else:
+        # Gold / yfinance
         ticker = st.text_input("Ticker (yfinance)", value="GC=F")  # GC=F for Gold
         interval_map = {
             "1m":"1m", "5m":"5m", "15m":"15m", "30m":"30m", "1h":"60m", "4h":"240m", "1d":"1d"
         }
         interval_choice = st.selectbox("Interval", list(interval_map.keys()), index=4)
-        # For yfinance we only need period (approx)
-        period = st.selectbox("Period", ["30d","3mo","6mo","1y","2y","5y"], index=5)
+    
+        # Dates for yfinance
+        default_start = datetime.combine(end_date, end_time) - timedelta(days=730)  # default 2 years
+        start_date = st.date_input("Start Date", value=default_start.date(), key="yf_start")
+        start_time = st.time_input("Start Time", value=datetime.strptime("00:00", "%H:%M").time(), key="yf_start_time")
+    
+        # Convert start & end datetime
+        start_dt_yf = datetime.combine(start_date, start_time)
+        end_dt_yf = datetime.combine(end_date, end_time)
+    
+        # Download data with start & end
+        with st.spinner(f"Downloading {ticker} data from yfinance..."):
+            df = yf.download(
+                ticker,
+                start=start_dt_yf,
+                end=end_dt_yf,
+                interval=interval_map[interval_choice]
+            )
+    
+        # Prepare DataFrame
+        df.index = pd.to_datetime(df.index).tz_localize('UTC').tz_convert('Asia/Tehran')
+        data = df[['Open','High','Low','Close','Volume']].copy()
+
 
 # -------------------------------
 # Fetch data
