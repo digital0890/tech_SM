@@ -5,14 +5,7 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import streamlit as st
 from datetime import datetime, timedelta
-import ta
 import pytz
-from pykalman import KalmanFilter
-import yfinance as yf
-from scipy import stats
-import pywt
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -95,6 +88,38 @@ if st.sidebar.button("Set Alert"):
 if 'alerts' not in st.session_state:
     st.session_state.alerts = []
 
+# Manual implementation of technical indicators
+def calculate_rsi(data, period=14):
+    delta = data['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def calculate_macd(data, fast=12, slow=26, signal=9):
+    ema_fast = data['Close'].ewm(span=fast).mean()
+    ema_slow = data['Close'].ewm(span=slow).mean()
+    macd = ema_fast - ema_slow
+    macd_signal = macd.ewm(span=signal).mean()
+    macd_hist = macd - macd_signal
+    return macd, macd_signal, macd_hist
+
+def calculate_bollinger_bands(data, period=20, std_dev=2):
+    sma = data['Close'].rolling(window=period).mean()
+    std = data['Close'].rolling(window=period).std()
+    upper_band = sma + (std * std_dev)
+    lower_band = sma - (std * std_dev)
+    return upper_band, sma, lower_band
+
+def calculate_stochastic(data, period=14, smooth_k=3, smooth_d=3):
+    low_min = data['Low'].rolling(window=period).min()
+    high_max = data['High'].rolling(window=period).max()
+    stoch_k = 100 * (data['Close'] - low_min) / (high_max - low_min)
+    stoch_k_smooth = stoch_k.rolling(window=smooth_k).mean()
+    stoch_d = stoch_k_smooth.rolling(window=smooth_d).mean()
+    return stoch_k_smooth, stoch_d
+
 # Cached functions
 @st.cache_data(ttl=300)
 def fetch_data(_exchange, symbol, timeframe, limit):
@@ -108,24 +133,16 @@ def fetch_data(_exchange, symbol, timeframe, limit):
 @st.cache_data
 def calculate_technical_indicators(data):
     # RSI
-    data['RSI'] = ta.momentum.RSIIndicator(data['Close']).rsi()
+    data['RSI'] = calculate_rsi(data)
     
     # MACD
-    macd = ta.trend.MACD(data['Close'])
-    data['MACD'] = macd.macd()
-    data['MACD_signal'] = macd.macd_signal()
-    data['MACD_hist'] = macd.macd_diff()
+    data['MACD'], data['MACD_signal'], data['MACD_hist'] = calculate_macd(data)
     
     # Bollinger Bands
-    bollinger = ta.volatility.BollingerBands(data['Close'])
-    data['BB_upper'] = bollinger.bollinger_hband()
-    data['BB_middle'] = bollinger.bollinger_mavg()
-    data['BB_lower'] = bollinger.bollinger_lband()
+    data['BB_upper'], data['BB_middle'], data['BB_lower'] = calculate_bollinger_bands(data)
     
     # Stochastic Oscillator
-    stochastic = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close'])
-    data['Stoch_K'] = stochastic.stoch()
-    data['Stoch_D'] = stochastic.stoch_signal()
+    data['Stoch_K'], data['Stoch_D'] = calculate_stochastic(data)
     
     # Volume MA
     data["Volume_MA20"] = data["Volume"].rolling(window=20).mean()
@@ -170,22 +187,24 @@ def create_main_chart(data, supply_idx, demand_idx):
     ), row=1, col=1)
 
     # Supply points
-    fig.add_trace(go.Scatter(
-        x=data.index[supply_idx],
-        y=data['High'].iloc[supply_idx] + 5,
-        mode='markers',
-        marker=dict(symbol='triangle-up', color='red', size=12),
-        name='Supply'
-    ), row=1, col=1)
+    if len(supply_idx) > 0:
+        fig.add_trace(go.Scatter(
+            x=data.index[supply_idx],
+            y=data['High'].iloc[supply_idx] + 5,
+            mode='markers',
+            marker=dict(symbol='triangle-up', color='red', size=12),
+            name='Supply'
+        ), row=1, col=1)
 
     # Demand points
-    fig.add_trace(go.Scatter(
-        x=data.index[demand_idx],
-        y=data['Low'].iloc[demand_idx] - 5,
-        mode='markers',
-        marker=dict(symbol='triangle-down', color='green', size=12),
-        name='Demand'
-    ), row=1, col=1)
+    if len(demand_idx) > 0:
+        fig.add_trace(go.Scatter(
+            x=data.index[demand_idx],
+            y=data['Low'].iloc[demand_idx] - 5,
+            mode='markers',
+            marker=dict(symbol='triangle-down', color='green', size=12),
+            name='Demand'
+        ), row=1, col=1)
 
     # Volume
     up = data[data["Close"] >= data["Open"]]
