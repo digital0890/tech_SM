@@ -26,7 +26,7 @@ with st.sidebar:
     symbols = ["BTC/USD", "ETH/USD", "BNB/USD", "XRP/USD", "ADA/USD", "Gold"]
     symbol = st.selectbox("Select Symbol", options=symbols, index=1)
 
-    timeframe = st.selectbox("Timeframe", options=["1m","5m","15m","30m","1h","4h","1d"], index=4)
+    timeframe = st.selectbox("Timeframe", options=["1m","5m","15m","30m","1h"], index=4)
     lookback = st.slider("Lookback (for Supply/Demand points)", 1, 10, 3)
 
     # Default end datetime: today 23:59
