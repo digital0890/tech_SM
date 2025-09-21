@@ -1,6 +1,7 @@
 import streamlit as st
 import ccxt
 import pandas as pd
+import yfinance as yf
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import time
@@ -9,10 +10,10 @@ from datetime import datetime, timedelta
 # -------------------------------
 # Page settings
 # -------------------------------
-st.set_page_config(layout="wide", page_title="Crypto Supply/Demand Analysis")
+st.set_page_config(layout="wide", page_title="Crypto & Gold Supply/Demand Analysis")
 
 # Centered title
-st.markdown("<h1 style='text-align: center;'>📈 Crypto Supply & Demand Analysis</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>📈 Crypto & Gold Supply & Demand Analysis</h1>", unsafe_allow_html=True)
 st.markdown("<hr>", unsafe_allow_html=True)
 
 # -------------------------------
@@ -22,7 +23,7 @@ with st.sidebar:
     st.header("⚙️ Settings")
 
     # انتخاب ارز از لیست
-    symbols = ["BTC/USD", "ETH/USD", "BNB/USD", "XRP/USD", "ADA/USD"]
+    symbols = ["BTC/USD", "ETH/USD", "BNB/USD", "XRP/USD", "ADA/USD", "Gold"]
     symbol = st.selectbox("Select Symbol", options=symbols, index=1)
 
     timeframe = st.selectbox("Timeframe", options=["1m","5m","15m","30m","1h","4h","1d"], index=4)
@@ -60,32 +61,70 @@ since = int(start_dt.timestamp() * 1000)
 until = int(end_dt.timestamp() * 1000)
 
 # -------------------------------
-# Fetch data using CCXT
+# Fetch data
 # -------------------------------
-exchange = ccxt.coinbase()
-ohlcv = []
+if symbol == "Gold":
+    # Map timeframe to yfinance intervals
+    yf_tf_map = {
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "60m",
+        "4h": "1h",   # yfinance ندارد 4h → با 1h جایگزین
+        "1d": "1d"
+    }
+    yf_interval = yf_tf_map[timeframe]
 
-with st.spinner("Fetching data from exchange..."):
-    while since < until:
-        batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
-        if len(batch) == 0:
-            break
-        ohlcv += batch
-        since = batch[-1][0] + 1
-        time.sleep(exchange.rateLimit / 1000)
+    ticker = "GC=F"   # Gold Futures
+    with st.spinner("Fetching Gold data from Yahoo Finance..."):
+        df = yf.download(
+            ticker,
+            start=start_dt,
+            end=end_dt,
+            interval=yf_interval
+        )
 
-if len(ohlcv) == 0:
-    st.error("No data found! Check symbol or timeframe.")
-    st.stop()
+    if df.empty:
+        st.error("No data found for Gold!")
+        st.stop()
 
-# -------------------------------
-# Create DataFrame
-# -------------------------------
-data = pd.DataFrame(ohlcv, columns=['timestamp','Open','High','Low','Close','Volume'])
-data['timestamp'] = pd.to_datetime(data['timestamp'], unit='ms', utc=True)
-data['timestamp'] = data['timestamp'].dt.tz_convert('Asia/Tehran')
-data.set_index('timestamp', inplace=True)
-data = data[data.index <= pd.Timestamp(end_dt).tz_localize('Asia/Tehran')]
+    # هماهنگ‌سازی با ساختار ccxt
+    data = df.rename(columns={
+        "Open": "Open",
+        "High": "High",
+        "Low": "Low",
+        "Close": "Close",
+        "Volume": "Volume"
+    }).copy()
+
+    data.index = data.index.tz_convert("Asia/Tehran")
+
+else:
+    exchange = ccxt.coinbase()
+    ohlcv = []
+
+    with st.spinner("Fetching crypto data from exchange..."):
+        while since < until:
+            batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
+            if len(batch) == 0:
+                break
+            ohlcv += batch
+            since = batch[-1][0] + 1
+            time.sleep(exchange.rateLimit / 1000)
+
+    if len(ohlcv) == 0:
+        st.error("No data found! Check symbol or timeframe.")
+        st.stop()
+
+    # -------------------------------
+    # Create DataFrame for crypto
+    # -------------------------------
+    data = pd.DataFrame(ohlcv, columns=['timestamp','Open','High','Low','Close','Volume'])
+    data['timestamp'] = pd.to_datetime(data['timestamp'], unit='ms', utc=True)
+    data['timestamp'] = data['timestamp'].dt.tz_convert('Asia/Tehran')
+    data.set_index('timestamp', inplace=True)
+    data = data[data.index <= pd.Timestamp(end_dt).tz_localize('Asia/Tehran')]
 
 # -------------------------------
 # Calculations
