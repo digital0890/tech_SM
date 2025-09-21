@@ -71,7 +71,7 @@ if symbol == "Gold":
         "15m": "15m",
         "30m": "30m",
         "1h": "60m",
-        "4h": "1h",   # yfinance ندارد 4h → با 1h جایگزین
+        "4h": "60m",   # بعداً resample می‌کنیم
         "1d": "1d"
     }
     yf_interval = yf_tf_map[timeframe]
@@ -89,6 +89,10 @@ if symbol == "Gold":
         st.error("No data found for Gold!")
         st.stop()
 
+    # اگر MultiIndex بود، ساده کن
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
     # هماهنگ‌سازی با ساختار ccxt
     data = df.rename(columns={
         "Open": "Open",
@@ -97,6 +101,16 @@ if symbol == "Gold":
         "Close": "Close",
         "Volume": "Volume"
     }).copy()
+
+    # اگر 4h انتخاب شده، resample کن
+    if timeframe == "4h":
+        data = data.resample("4H").agg({
+            "Open": "first",
+            "High": "max",
+            "Low": "min",
+            "Close": "last",
+            "Volume": "sum"
+        }).dropna()
 
     data.index = data.index.tz_convert("Asia/Tehran")
 
@@ -139,9 +153,9 @@ demand_idx = []
 for i in range(lookback, len(data)-lookback):
     high_window = data['High'].iloc[i-lookback:i+lookback+1]
     low_window = data['Low'].iloc[i-lookback:i+lookback+1]
-    if data['High'].iloc[i] == max(high_window):
+    if data['High'].iloc[i] == high_window.max():
         supply_idx.append(i)
-    if data['Low'].iloc[i] == min(low_window):
+    if data['Low'].iloc[i] == low_window.min():
         demand_idx.append(i)
 
 supply_idx_filtered = [i for i in supply_idx if data['Volume'].iloc[i] > data['Volume_MA20'].iloc[i]]
