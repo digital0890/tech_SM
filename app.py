@@ -76,17 +76,9 @@ selected_timeframe = st.sidebar.selectbox("Timeframe", list(timeframe_options.ke
 # Limit selection
 limit = st.sidebar.slider("Number of Candles", min_value=100, max_value=1000, value=500, step=50)
 
-# Alert settings
-st.sidebar.subheader("Alert Settings")
-alert_price = st.sidebar.number_input("Alert Price", value=0.0, step=0.1, format="%.2f")
-alert_condition = st.sidebar.selectbox("Alert Condition", ["Above", "Below", "5% Change"])
-
-if st.sidebar.button("Set Alert"):
-    st.sidebar.success("Alert set!")
-
-# Initialize alerts in session state
-if 'alerts' not in st.session_state:
-    st.session_state.alerts = []
+# Run button
+if st.sidebar.button("Run Analysis", type="primary"):
+    st.rerun()
 
 # Manual implementation of technical indicators
 def calculate_rsi(data, period=14):
