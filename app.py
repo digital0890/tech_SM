@@ -22,19 +22,17 @@ with st.sidebar:
     st.header("⚙️ Settings")
     
     data_source = st.radio("Data Source", ["Crypto (CCXT)", "Stock/Gold (yfinance)"])
-    
     lookback = st.slider("Lookback (for Supply/Demand points)", 1, 10, 3)
     
     # Default end datetime
     default_end = datetime.now().replace(hour=23, minute=59, second=0, microsecond=0)
     end_date = st.date_input("End Date", value=default_end.date())
     end_time = st.time_input("End Time", value=default_end.time())
-    
-    required_candles = 500
-    
+
     if data_source == "Crypto (CCXT)":
         symbol = st.text_input("Symbol (CCXT)", value="ETH/USD")
         timeframe = st.selectbox("Timeframe", options=["1m","5m","15m","30m","1h","4h","1d"], index=4)
+        required_candles = 500
         tf_map = {
             "1m": timedelta(minutes=1),
             "5m": timedelta(minutes=5),
@@ -49,41 +47,19 @@ with st.sidebar:
         start_date = st.date_input("Start Date", value=default_start.date())
         start_time = st.time_input("Start Time", value=default_start.time())
     else:
-        # Gold / yfinance
-        ticker = st.text_input("Ticker (yfinance)", value="GC=F")  # GC=F for Gold
-        interval_map = {
-            "1m":"1m", "5m":"5m", "15m":"15m", "30m":"30m", "1h":"60m", "4h":"240m", "1d":"1d"
-        }
+        ticker = st.text_input("Ticker (yfinance)", value="GC=F")  # Gold
+        interval_map = {"1m":"1m", "5m":"5m", "15m":"15m", "30m":"30m", "1h":"60m", "4h":"240m", "1d":"1d"}
         interval_choice = st.selectbox("Interval", list(interval_map.keys()), index=4)
-    
-        # Dates for yfinance
-        default_start = datetime.combine(end_date, end_time) - timedelta(days=730)  # default 2 years
+
+        # Default start date 2 years before end
+        default_start = datetime.combine(end_date, end_time) - timedelta(days=730)
         start_date = st.date_input("Start Date", value=default_start.date(), key="yf_start")
         start_time = st.time_input("Start Time", value=datetime.strptime("00:00", "%H:%M").time(), key="yf_start_time")
-    
-        # Convert start & end datetime
-        start_dt_yf = datetime.combine(start_date, start_time)
-        end_dt_yf = datetime.combine(end_date, end_time)
-    
-        # Download data with start & end
-        with st.spinner(f"Downloading {ticker} data from yfinance..."):
-            df = yf.download(
-                ticker,
-                start=start_dt_yf,
-                end=end_dt_yf,
-                interval=interval_map[interval_choice]
-            )
-    
-        # Prepare DataFrame
-        df.index = pd.to_datetime(df.index).tz_localize('UTC').tz_convert('Asia/Tehran')
-        data = df[['Open','High','Low','Close','Volume']].copy()
-
 
 # -------------------------------
 # Fetch data
 # -------------------------------
 if data_source == "Crypto (CCXT)":
-    # convert timestamps
     start_dt = datetime.combine(start_date, start_time)
     end_dt = datetime.combine(end_date, end_time)
     since = int(start_dt.timestamp() * 1000)
@@ -93,7 +69,11 @@ if data_source == "Crypto (CCXT)":
     ohlcv = []
     with st.spinner("Fetching crypto data from CCXT..."):
         while since < until:
-            batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
+            try:
+                batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
+            except Exception as e:
+                st.error(f"Error fetching data: {e}")
+                st.stop()
             if len(batch) == 0:
                 break
             ohlcv += batch
@@ -104,23 +84,44 @@ if data_source == "Crypto (CCXT)":
         st.error("No data found! Check symbol or timeframe.")
         st.stop()
     
-    # DataFrame
     data = pd.DataFrame(ohlcv, columns=['timestamp','Open','High','Low','Close','Volume'])
     data['timestamp'] = pd.to_datetime(data['timestamp'], unit='ms', utc=True)
     data['timestamp'] = data['timestamp'].dt.tz_convert('Asia/Tehran')
     data.set_index('timestamp', inplace=True)
     data = data[data.index <= pd.Timestamp(end_dt).tz_localize('Asia/Tehran')]
+
 else:
+    start_dt_yf = datetime.combine(start_date, start_time)
+    end_dt_yf = datetime.combine(end_date, end_time)
+
+    # Limit max 730 days for interval < 1d
+    if interval_choice in ["1m","5m","15m","30m","1h","4h"]:
+        start_dt_yf = max(start_dt_yf, end_dt_yf - timedelta(days=730))
+
     with st.spinner(f"Downloading {ticker} data from yfinance..."):
-        df = yf.download(ticker, period=period, interval=interval_map[interval_choice])
-    
-    # Prepare data in the same format
-    df = df.rename(columns={"Open":"Open","High":"High","Low":"Low","Close":"Close","Volume":"Volume"})
-    df.index = pd.to_datetime(df.index).tz_localize('UTC').tz_convert('Asia/Tehran')
+        try:
+            df = yf.download(
+                ticker,
+                start=start_dt_yf,
+                end=end_dt_yf,
+                interval=interval_map[interval_choice]
+            )
+        except Exception as e:
+            st.error(f"Error downloading yfinance data: {e}")
+            st.stop()
+
+    if df.empty:
+        st.error("No data returned. Possibly interval too small for date range.")
+        st.stop()
+
+    df.index = pd.to_datetime(df.index)
+    if df.index.tz is None:
+        df.index = df.index.tz_localize('UTC')
+    df.index = df.index.tz_convert('Asia/Tehran')
     data = df[['Open','High','Low','Close','Volume']].copy()
 
 # -------------------------------
-# Calculations (same as before)
+# Calculations
 # -------------------------------
 data["Volume_MA20"] = data["Volume"].rolling(window=20).mean()
 up = data[data["Close"] >= data["Open"]]
