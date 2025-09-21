@@ -109,6 +109,11 @@ supply_idx_filtered = [i for i in supply_idx if data['Volume'].iloc[i] > data['V
 demand_idx_filtered = [i for i in demand_idx if data['Volume'].iloc[i] > data['Volume_MA20'].iloc[i]]
 
 # -------------------------------
+# Display number of identified points
+# -------------------------------
+st.markdown(f"### 🔴 Supply Points: {len(supply_idx_filtered)} | 🟢 Demand Points: {len(demand_idx_filtered)}")
+
+# -------------------------------
 # Plot chart with smooth animation
 # -------------------------------
 fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
