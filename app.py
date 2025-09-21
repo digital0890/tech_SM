@@ -116,9 +116,9 @@ demand_idx = []
 for i in range(lookback, len(data)-lookback):
     high_window = data['High'].iloc[i-lookback:i+lookback+1]
     low_window = data['Low'].iloc[i-lookback:i+lookback+1]
-    if data['High'].iloc[i] == max(high_window):
+    if data['High'].iloc[i] == high_window.max():
         supply_idx.append(i)
-    if data['Low'].iloc[i] == min(low_window):
+    if data['Low'].iloc[i] == low_window.min():
         demand_idx.append(i)
 
 supply_idx_filtered = [i for i in supply_idx if data['Volume'].iloc[i] > data['Volume_MA20'].iloc[i]]
